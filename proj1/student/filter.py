@@ -17,6 +17,12 @@ def noise_covariances(part: int) -> tuple[np.ndarray, np.ndarray]:
     values for report runs; the checker supplies its own Q and R to run_filter().
     """
     # TODO: choose and tune the process and measurement noise covariances.
+    if part == 1:
+        Q = np.eye(12)
+        R = np.eye(6)
+        return Q, R
+    else:
+        return (np.eye(12), np.eye(3))
     raise NotImplementedError("Choose Q and R in filter.py: noise_covariances")
 
 
