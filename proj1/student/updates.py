@@ -6,7 +6,7 @@ from scipy.spatial.transform import Rotation
 
 from support import Estimate
 
-from filter import noise_covariances
+# from filter import noise_covariances
 
 
 def update_pose(
@@ -18,21 +18,34 @@ def update_pose(
     """
     # TODO: build the observation model and apply the Kalman update.
     #C x_bar + v_t
-    Q,R = noise_covariances(1)
+    R = measurement_noise
     x = estimate.state[:6]
-    C = np.eye(6)
+    W = np.eye(6)
+    
+    # is the partial of g w.r.t .x TODO
+    C = np.array([
+        [1, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 1, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 1, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 1, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 0, 1, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 0, 0, 1, 0,0,0,0,0,0,0,0,0]
+    ])
+    # mu_bar = x
+    print("pre inverse:", C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
+    K =  estimate.covariance @ np.transpose(C) @ np.linalg.inv(C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
+    mu = estimate.state + K @ (x - measurement)
 
-    mu_bar = x
-    cov_bar = estimate.covariance[:6,:6]
+    cov = estimate.covariance - K @ C @ estimate.covariance
 
-    mu = mu_bar + cov_bar @ np.transpose(C) @ np.inv(C @ cov_bar @ np.transpose(C) + R) @ (x - measurement)
-
-    cov = cov_bar - cov_bar @ np.transpose(C) @ np.inv(C @ cov_bar @ np.transpose(C) + R)
-
-    estimate.state[:6] = mu
-    estimate.state[3:] = np.min(-np.pi, np.max(np.pi, estimate.state[3:]))
-    estimate.cov[:6,:6]=cov
-    return estimate # TODO where is our measurement_noise
+    estimate.state = mu
+    for s in range(3,6):
+        if estimate.state[s] > np.pi:
+            estimate.state[s] -= 2*np.pi
+        elif estimate.state[s] < -np.pi:
+            estimate.state[s] += 2*np.pi
+    estimate.covariance=cov
+    return estimate
 
     raise NotImplementedError("Complete updates.py: update_pose")
 

@@ -18,9 +18,9 @@ def noise_covariances(part: int) -> tuple[np.ndarray, np.ndarray]:
     """
     # TODO: choose and tune the process and measurement noise covariances.
     if part == 1:
-        Q = np.eye(12)
+        Q =  np.eye(12)
         R = np.eye(6)
-        return Q, R
+        return (Q, R)
     else:
         return (np.eye(12), np.eye(3))
     raise NotImplementedError("Choose Q and R in filter.py: noise_covariances")
@@ -39,11 +39,26 @@ def run_filter(
     )
     states = np.empty((15, dataset.time.size))
     states[:, 0] = estimate.state
-    for index in range(1, dataset.time.size):
-        # TODO: propagate from time[index - 1] to time[index] using IMU column
-        # index - 1, update using measurements[:, index], and save the state.
-        # Pass process_noise to predict and measurement_noise to update.
-        raise NotImplementedError("Complete filter.py: run_filter loop")
+    # for index in range(1, dataset.time.size):
+    for index in range(1, 3):
+        # def predict(
+        #     estimate: Estimate,
+        #     angular_velocity: ArrayLike,
+        #     acceleration: ArrayLike,
+        #     dt: float,
+        #     process_noise: ArrayLike,
+        # ) -> Estimate:
+        prediction = predict(
+            estimate, dataset.angular_velocity[:, index], dataset.acceleration[:, index],
+            dataset.time[index] - dataset.time[index - 1], process_noise,
+        )
+
+        estimate = update(prediction, measurements[:, index], measurement_noise)
+        # estimate=prediction
+
+        states[:, index] = estimate.state
+        print("state",estimate.state)
+        # raise NotImplementedError("Complete filter.py: run_filter loop")
     return FilterResult(
         states=states, time=dataset.time, vicon=dataset.vicon,
         final_estimate=estimate, part=part, dataset_number=dataset.number,
