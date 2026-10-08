@@ -6,7 +6,7 @@ from scipy.spatial.transform import Rotation
 
 from support import Estimate
 
-from filter import noise_covariances
+# from filter import noise_covariances
 
 
 def update_pose(
@@ -18,28 +18,83 @@ def update_pose(
     """
     # TODO: build the observation model and apply the Kalman update.
     #C x_bar + v_t
-    Q,R = noise_covariances(1)
+    R = measurement_noise
     x = estimate.state[:6]
-    C = np.eye(6)
+    W = np.eye(6)
+    
+    # is the partial of g w.r.t .x TODO
+    C = np.array([
+        [1, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 1, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 1, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 1, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 0, 1, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 0, 0, 1, 0,0,0,0,0,0,0,0,0]
+    ])
+    # mu_bar = x
+    #print("pre inverse:", C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
+    K =  estimate.covariance @ np.transpose(C) @ np.linalg.inv(C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
 
-    mu_bar = x
-    cov_bar = estimate.covariance[:6,:6]
+    #changed to measurement - x instead of x - measurement (divergence bug)
+    innovation = measurement - x
+    
+    for s in range(3,6):
+        if innovation[s] > np.pi:
+            innovation[s] -= 2*np.pi
+        elif innovation[s] < -np.pi:
+            innovation[s] += 2*np.pi
 
-    mu = mu_bar + cov_bar @ np.transpose(C) @ np.inv(C @ cov_bar @ np.transpose(C) + R) @ (x - measurement)
+    mu = estimate.state + K @ (innovation)
 
-    cov = cov_bar - cov_bar @ np.transpose(C) @ np.inv(C @ cov_bar @ np.transpose(C) + R)
+    cov = estimate.covariance - K @ C @ estimate.covariance
 
-    estimate.state[:6] = mu
-    estimate.state[3:] = np.min(-np.pi, np.max(np.pi, estimate.state[3:]))
-    estimate.cov[:6,:6]=cov
-    return estimate # TODO where is our measurement_noise
+    #estimate.state = mu
+    #estimate.covariance=cov
+    return Estimate(state=mu, covariance=cov)
 
-    raise NotImplementedError("Complete updates.py: update_pose")
+    #raise NotImplementedError("Complete updates.py: update_pose")
 
-
+#finished this (forgot to complete last term)
 def update_velocity(
     estimate: Estimate, measurement: ArrayLike, measurement_noise: ArrayLike
 ) -> Estimate:
     """Part 2: world-frame velocity measurement (3,) and its covariance R (3, 3)."""
     # TODO: build the observation model and apply the Kalman update.
-    raise NotImplementedError("Complete updates.py: update_velocity")
+    R = measurement_noise 
+    x = estimate.state[6:9]
+    W = np.eye(3)
+	
+    C = np.array([
+	# [1,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0],
+	# [0,1,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0],
+	# [0,0,1, 0,0,0, 0,0,0, 0,0,0, 0,0,0],
+	# [0,0,0, 1,0,0, 0,0,0, 0,0,0, 0,0,0],
+	# [0,0,0, 0,1,0, 0,0,0, 0,0,0, 0,0,0],
+	# [0,0,0, 0,0,1, 0,0,0, 0,0,0, 0,0,0],
+	[0,0,0, 0,0,0, 1,0,0, 0,0,0, 0,0,0],
+	[0,0,0, 0,0,0, 0,1,0, 0,0,0, 0,0,0],
+	[0,0,0, 0,0,0, 0,0,1, 0,0,0, 0,0,0]
+    ])
+    # print("1", C @ estimate.covariance @  np.transpose(C))
+    # print("2", W @ R @ np.transpose(W))
+    innovation = measurement - x
+    for s in range(0,3):
+        if innovation[s] > np.pi:
+            innovation[s] -= 2*np.pi
+        elif innovation[s] < -np.pi:
+            innovation[s] += 2*np.pi
+
+    K =  estimate.covariance @ np.transpose(C) @ np.linalg.inv(C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
+
+    # print(measurement)
+    mu = estimate.state + K @ (innovation)
+
+    
+    cov = estimate.covariance - K @ C @ estimate.covariance
+
+    return Estimate(state=mu, covariance=cov)
+
+
+	
+    
+    #raise NotImplementedError("Complete updates.py: update_velocity")

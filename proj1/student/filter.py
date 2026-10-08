@@ -18,12 +18,12 @@ def noise_covariances(part: int) -> tuple[np.ndarray, np.ndarray]:
     """
     # TODO: choose and tune the process and measurement noise covariances.
     if part == 1:
-        Q = np.eye(12)
-        R = np.eye(6)
-        return Q, R
+        Q =  0.01* np.eye(12)
+        R = 0.01 * np.eye(6)
+        return (Q, R)
     else:
-        return (np.eye(12), np.eye(3))
-    raise NotImplementedError("Choose Q and R in filter.py: noise_covariances")
+        return (0.01*np.eye(12), 0.01*np.eye(3))
+    #raise NotImplementedError("Choose Q and R in filter.py: noise_covariances")
 
 
 def run_filter(
@@ -36,14 +36,27 @@ def run_filter(
     estimate = Estimate(
         state=np.concatenate((dataset.vicon[:9, 0], np.zeros(6))),
         covariance=np.eye(15),
-    )
+    ) 
+    # if part==1 else Estimate(
+    #     state=np.concatenate((np.zeros(6), dataset.vicon[6:9, 0], np.zeros(6))),
+    #     covariance=np.eye(15),
+    # )
     states = np.empty((15, dataset.time.size))
     states[:, 0] = estimate.state
+    # for index in range(1, dataset.time.size):
     for index in range(1, dataset.time.size):
-        # TODO: propagate from time[index - 1] to time[index] using IMU column
-        # index - 1, update using measurements[:, index], and save the state.
-        # Pass process_noise to predict and measurement_noise to update.
-        raise NotImplementedError("Complete filter.py: run_filter loop")
+        # changed index to index -1 since we want to predict previous samples
+        prediction = predict(
+            estimate, dataset.angular_velocity[:, index-1], dataset.acceleration[:, index-1],
+            dataset.time[index] - dataset.time[index - 1], process_noise,
+        )
+
+        estimate = update(prediction, measurements[:, index], measurement_noise)
+        # estimate=prediction
+
+        states[:, index] = estimate.state
+        #print("state",estimate.state)
+        # raise NotImplementedError("Complete filter.py: run_filter loop")
     return FilterResult(
         states=states, time=dataset.time, vicon=dataset.vicon,
         final_estimate=estimate, part=part, dataset_number=dataset.number,
