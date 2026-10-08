@@ -78,11 +78,6 @@ def update_velocity(
     # print("1", C @ estimate.covariance @  np.transpose(C))
     # print("2", W @ R @ np.transpose(W))
     innovation = measurement - x
-    for s in range(0,3):
-        if innovation[s] > np.pi:
-            innovation[s] -= 2*np.pi
-        elif innovation[s] < -np.pi:
-            innovation[s] += 2*np.pi
 
     K =  estimate.covariance @ np.transpose(C) @ np.linalg.inv(C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
 

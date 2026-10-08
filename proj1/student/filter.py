@@ -22,7 +22,12 @@ def noise_covariances(part: int) -> tuple[np.ndarray, np.ndarray]:
         R = 0.01 * np.eye(6)
         return (Q, R)
     else:
-        return (0.01*np.eye(12), 0.01*np.eye(3))
+        return (0.001*np.eye(12), #0.001*np.eye(3))
+        np.array([
+            [0.0001,0,0],
+            [0,0.0001,0],
+            [0,0,0.0001]
+        ]))
     #raise NotImplementedError("Choose Q and R in filter.py: noise_covariances")
 
 
@@ -36,11 +41,10 @@ def run_filter(
     estimate = Estimate(
         state=np.concatenate((dataset.vicon[:9, 0], np.zeros(6))),
         covariance=np.eye(15),
-    ) 
-    # if part==1 else Estimate(
-    #     state=np.concatenate((np.zeros(6), dataset.vicon[6:9, 0], np.zeros(6))),
-    #     covariance=np.eye(15),
-    # )
+    ) if part==1 else Estimate(
+        state=np.concatenate((np.zeros(6), dataset.vicon[6:9, 0], np.zeros(6))),
+        covariance=np.eye(15),
+    )
     states = np.empty((15, dataset.time.size))
     states[:, 0] = estimate.state
     # for index in range(1, dataset.time.size):

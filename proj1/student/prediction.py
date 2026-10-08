@@ -31,7 +31,7 @@ def predict(
     # accelerometer bias -> n_{ba}
 
     x,y,z = estimate.state[0:3]
-    roll,pitch,yaw = estimate.state[3:6] - estimate.state[9:12]
+    roll,pitch,yaw = estimate.state[3:6] #- estimate.state[9:12]
     vx,vy,vz = estimate.state[6:9]
     gx,gy,gz = estimate.state[9:12]
 
@@ -137,7 +137,7 @@ def predict(
         [0,0,0, G_inv_prime_roll_roll[1], G_inv_prime_pitch_pitch[1], G_inv_prime_yaw_yaw[1], 0,0,0, -G_inv[1,0], -G_inv[1,1], -G_inv[1,2], 0,0,0], # pitch
         [0,0,0, G_inv_prime_roll_roll[2], G_inv_prime_pitch_pitch[2], G_inv_prime_yaw_yaw[2], 0,0,0, -G_inv[2,0], -G_inv[2,1], -G_inv[2,2], 0,0,0], # yaw
         [0,0,0, R_dot_roll[0], R_dot_pitch[0], R_dot_yaw[0], 0,0,0, 0,0,0, -R[0,0],-R[0,1],-R[0,2]], # vx
-        [0,0,0, R_dot_roll[1], R_dot_pitch[1], R_dot_yaw[2], 0,0,0, 0,0,0, -R[1,0],-R[1,1],-R[1,2]], # vy
+        [0,0,0, R_dot_roll[1], R_dot_pitch[1], R_dot_yaw[1], 0,0,0, 0,0,0, -R[1,0],-R[1,1],-R[1,2]], # vy
         [0,0,0, R_dot_roll[2], R_dot_pitch[2], R_dot_yaw[2], 0,0,0, 0,0,0, -R[2,0],-R[2,1],-R[2,2]], # vz
         [0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0], # gyroscope bias x
         [0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0], # gyroscope bias y
