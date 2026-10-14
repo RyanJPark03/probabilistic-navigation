@@ -45,14 +45,16 @@ def estimate_pose(frame: Frame) -> Pose | None:
     Apply BODY_TO_CAMERA to recover the body pose. Return None if no tags
     are visible. Pixel coordinates are zero-based (u right, v down).
     """
+    if len(frame.ids) == 0:
+        return None
     world_frame_corners = get_corners(frame.ids)
     pixel_corners = frame.corners
 
     A = []
-    for i in range(len(world_frame_corners)):
-        for j in range(4):
-            A.append([world_frame_corners[i][j][0], world_frame_corners[i][j][1], 1, 0, 0, 0, -pixel_corners[i][j][0] * world_frame_corners[i][j][0], -pixel_corners[i][j][0] * world_frame_corners[i][j][1], -pixel_corners[i][j][0]])
-            A.append([0, 0, 0, world_frame_corners[i][j][0], world_frame_corners[i][j][1], 1, -pixel_corners[i][j][1] * world_frame_corners[i][j][0], -pixel_corners[i][j][1] * world_frame_corners[i][j][1], -pixel_corners[i][j][1]])
+    for id in range(len(world_frame_corners)):
+        for corner in range(4):
+            A.append([world_frame_corners[id][corner][0], world_frame_corners[id][corner][1], 1, 0, 0, 0, -pixel_corners[id][corner][0] * world_frame_corners[id][corner][0], -pixel_corners[id][corner][0] * world_frame_corners[id][corner][1], -pixel_corners[id][corner][0]])
+            A.append([0, 0, 0, world_frame_corners[id][corner][0], world_frame_corners[id][corner][1], 1, -pixel_corners[id][corner][1] * world_frame_corners[id][corner][0], -pixel_corners[id][corner][1] * world_frame_corners[id][corner][1], -pixel_corners[id][corner][1]])
 
     A = np.array(A)
     U, S, Vt = np.linalg.svd(A)
@@ -66,19 +68,36 @@ def estimate_pose(frame: Frame) -> Pose | None:
     RRT = np.linalg.inv(CAMERA_MATRIX) @ H
     # rrt_augmented = np.vstack((RRT, [0, 0, 1]))
     # corner = np.hstack((world_frame_corners[0][0], [1]))
-    world_frame_corners[0][0][2]=1
+    # world_frame_corners[0][0][2]=1
+    # world_frame_corners[0][0].append(1)
+    pretend_corner = [world_frame_corners[0][0][0], world_frame_corners[0][0][1], 1, 1]
 
     # reproject world corner
-    temp = np.asarray(RRT @ world_frame_corners[0][0])
+    print("world_frame_corners[0][0]:", pretend_corner)
+    print("RRT:", RRT)
+    R_test = RRT[:, :2]
+    r3_test = np.cross(R_test[:, 0], R_test[:, 1])
+    print("r3_test:", r3_test)
+    R_test = np.hstack((R_test, r3_test.reshape(3, 1), RRT[:,2].reshape(3, 1)))
+    R_test = np.vstack((R_test, [0, 0, 0, 1]))
+    print("R_test:", R_test)
+    temp = np.asarray(R_test @ pretend_corner)
+    print("temp:", temp)
+    # print("RRT @ world_frame_corners[0][0]:", temp)
+    # print("norm of rrt:", np.linalg.norm(RRT))
+    # print("norm of rr", np.linalg.norm(RRT[:, 0]), np.linalg.norm(RRT[:, 1]))
     if temp[2] < 0:
+        print("Flipping RRT because depth is negative")
         RRT = -RRT
+        # print("RRT @ world_frame_corners[0][0]:", np.asarray(RRT @ world_frame_corners[0][0]))
 
     R1 = RRT[:, :1]
     R2 = RRT[:, 1:2]
     t = RRT[:, 2]
 
-    # R1 = R1 / np.linalg.norm(R1)
-    # R2 = R2 / np.linalg.norm(R2)
+    t = t / np.linalg.norm(R1)
+    R1 = R1 / np.linalg.norm(R1)
+    R2 = R2 / np.linalg.norm(R2)
 
     # if np.isclose(np.transpose(R1) @ R2, 0, atol=1e-6):
         # print("R1:", R1)
@@ -93,13 +112,20 @@ def estimate_pose(frame: Frame) -> Pose | None:
     #     print("R1 norm:", np.linalg.norm(R1))
     #     raise ValueError("R1 is not a unit vector")
 
-    t = t / np.linalg.norm(R1)
+    
     R3 = np.cross(R1.flatten(), R2.flatten()).reshape(3, 1)
 
-    R1 = np.transpose(R1.flatten())
-    R2 = np.transpose(R2.flatten())
-    R3 = np.transpose(R3.flatten())
-    t = np.transpose(t.flatten())
+    U,S,Vt = np.linalg.svd(np.hstack((R1, R2, R3)))
+    R = U @ np.array(
+        [[1, 0, 0],
+         [0, 1, 0],
+         [0, 0, np.linalg.det(U @ Vt)]]
+    ) @ Vt
+
+    # R1 = np.transpose(R1.flatten())
+    # R2 = np.transpose(R2.flatten())
+    # R3 = np.transpose(R3.flatten())
+    # t = np.transpose(t.flatten())
 
     # print("R1:", R1)
     # print("R1 shape:", R1.shape)
@@ -109,17 +135,20 @@ def estimate_pose(frame: Frame) -> Pose | None:
     # print("R3 shape:", R3.shape)
     # print("t:", t)
     # print("t shape:", t.shape)
-    R = np.vstack((R1, R2, R3))
+    # R = np.vstack((R1, R2, R3))
     # print("R:", R)
     # print("R shape:", R.shape)
-    orientation = np.transpose(np.vstack((R, t)))
+    print("R:", R)
+    print("t:", t)
+    orientation = np.transpose(np.vstack((np.transpose(R), t)))
+    print("orientation:", orientation)
     orientation = np.vstack((orientation, [0, 0, 0, 1]))
+    print("orientation:", orientation)
     # print("orientation:", orientation)
     # print("orientation shape:", orientation.shape)
 
 
     body_pose = np.linalg.inv(BODY_TO_CAMERA) @ orientation
-    body_pose = np.linalg.inv(body_pose)
 
     return Pose(position=body_pose[:3, 3], rotation=body_pose[:3, :3])
     raise NotImplementedError("Complete pose.py: estimate_pose")
