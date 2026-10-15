@@ -17,7 +17,7 @@ def get_corners(ids: np.ndarray) -> np.ndarray:
     coordinates = [] # tl, tr, br, bl; tl = x y z
     # print(ids[-1])
     for id in ids:
-        id = 27
+        # id = 27
         row = id % 12
         col = id // 12
         coordinates.append([[],[],[],[]])
@@ -78,7 +78,7 @@ def estimate_pose(frame: Frame) -> Pose | None:
     R2 = RRT[:, 1]
     t = RRT[:, 2]
 
-    t = t / np.linalg.norm(R1)
+    t = t / (np.linalg.norm(R1))
 
     R3 = np.cross(R1.flatten(), R2.flatten()).reshape(3, 1)
 
@@ -89,7 +89,7 @@ def estimate_pose(frame: Frame) -> Pose | None:
          [0, 0, np.linalg.det(U @ Vt)]]
     ) @ Vt
 
-    t = -np.linalg.inv(R) @ t
+    # t = -np.linalg.inv(R) @ t
 
     orientation = np.transpose(np.vstack((np.transpose(R), t)))
     orientation = np.vstack((orientation, [0, 0, 0, 1]))
