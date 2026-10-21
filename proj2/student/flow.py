@@ -23,11 +23,11 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
 
     # use velocity_ransac to estimate the camera-frame velocity
 
-    for corner in points:
-        # print("corner: ", corner)
-        # corner = thing[0]
-        A = np.append(A, [[-1,0,corner[0]]])
-        A = np.append(A, [[0,-1,corner[1]]])
+    for i in range(len(points)):
+        corner = points[i]
+        Z = depth[i]
+        A = np.append(A, [-1/Z, 0, corner[0] / Z])
+        A = np.append(A, [0, -1/Z, corner[1] / Z])
         B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
         B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
     A = A.reshape(-1,3)
@@ -80,6 +80,8 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     # for corner in features_to_track:
     #     cv2.circle(previous.image, (int(corner[0][0]), int(corner[0][1])), 5, (0, 255, 0), -1)
     # cv2.imwrite('good_features_output.jpg', previous.image)
+    if features_to_track is None or len(features_to_track) < 3:
+        return None
 
     next_points, status, err = cv2.calcOpticalFlowPyrLK(previous.image, current.image, features_to_track, None, winSize=(15, 15), maxLevel=2, criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 
@@ -114,6 +116,21 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     threshold = None # Set an appropriate threshold for RANSAC
     iterations = None # Set an appropriate number of iterations for RANSAC
     x = velocity_ransac(corrected_prev_pts, flow, depth, ransac=ransac, threshold=threshold, iterations=iterations)
+
+    #x is the camera's velocty in the camera frame
+    V = x[:3]
+    omega = x[3:]
+
+    #camera pose at previous.time
+    R_CB = BODY_TO_CAMERA[:3, :3]
+    t_CB = BODY_TO_CAMERA[:3, 3] 
+    R_WC = pose.rotation @ np.linalg.inv(R_CB)
+
+    #V + omega x t_CB. then rotate to world/body frames
+    v_world = R_WC @ (V + np.cross(omega, t_CB))
+    omega_body = np.linalg.inv(R_WC) @ omega
+
+    x = np.concatenate((v_world, omega_body))
 
     return x
 
