@@ -17,6 +17,33 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
     each point by its 2D flow residual norm (< threshold, in 1/s), keep the
     best consensus, and refit using all its inliers.
     """
+
+    A = np.asarray([])
+    B = np.asarray([])
+
+    # use velocity_ransac to estimate the camera-frame velocity
+
+    for corner in points:
+        # print("corner: ", corner)
+        # corner = thing[0]
+        A = np.append(A, [[-1,0,corner[0]]])
+        A = np.append(A, [[0,-1,corner[1]]])
+        B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
+        B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
+    A = A.reshape(-1,3)
+    B = B.reshape(-1,3)
+
+    H = np.concatenate((A, B), axis=1)
+
+    if not in ransac:
+        temp1 = np.transpose(H) @ H
+        temp2 = np.linalg.inv(temp1)
+        temp3 = temp2 @ np.transpose(H)
+        x = temp3 @ flow.ravel()
+
+        return x    
+
+
     raise NotImplementedError("Complete flow.py: velocity_ransac")
 
 
@@ -34,6 +61,9 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     fewer than three usable tracks remain. The runner plots interval averages
     at midpoint timestamps; use the previous pose for frame transformations.
     """
+
+    if (current.time - previous.time) <= 0:
+        return None
 
     # cv2.imshow("previous", previous.image)
     # cv2.waitKey()
@@ -67,11 +97,11 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     corrected_prev_pts = np.linalg.inv(CAMERA_MATRIX) @ expanded_prev_pts.reshape(-1, 3, 1)
     corrected_next_pts = np.linalg.inv(CAMERA_MATRIX) @ expanded_next_pts.reshape(-1, 3, 1)
 
-    print("K_inv: ", np.linalg.inv(CAMERA_MATRIX))
-    print("corrected_prev_pts[0]: ", corrected_prev_pts[0])
-    print("expanded_prev_pts[0]: ", expanded_prev_pts[0])
-    print("reshaped expanded_prev_pts[0]: ", expanded_prev_pts.reshape(-1, 3, 1)[0])
-    raise NotImplementedError("Complete flow.py: estimate_velocity")
+    # print("K_inv: ", np.linalg.inv(CAMERA_MATRIX))
+    # print("corrected_prev_pts[0]: ", corrected_prev_pts[0])
+    # print("expanded_prev_pts[0]: ", expanded_prev_pts[0])
+    # print("reshaped expanded_prev_pts[0]: ", expanded_prev_pts.reshape(-1, 3, 1)[0])
+    #raise NotImplementedError("Complete flow.py: estimate_velocity")
 
     corrected_prev_pts = corrected_prev_pts[:, :2, 0]
     corrected_next_pts = corrected_next_pts[:, :2, 0]
@@ -79,27 +109,12 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     flow = corrected_next_pts - corrected_prev_pts
     flow /= (current.time - previous.time)
 
-    A = np.asarray([])
-    B = np.asarray([])
+    depth = np.ones(len(corrected_prev_pts)) * 1.0  # Placeholder for depth
 
-    # use velocity_ransac to estimate the camera-frame velocity
-
-    for corner in corrected_prev_pts:
-        # print("corner: ", corner)
-        # corner = thing[0]
-        A = np.append(A, [[-1,0,corner[0]]])
-        A = np.append(A, [[0,-1,corner[1]]])
-        B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
-        B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
-    A = A.reshape(-1,3)
-    B = B.reshape(-1,3)
-
-    H = np.concatenate((A, B), axis=1)
-    temp1 = np.transpose(H) @ H
-    temp2 = np.linalg.inv(temp1)
-    temp3 = temp2 @ np.transpose(H)
-    x = temp3 @ flow.ravel()
-
+    threshold = None # Set an appropriate threshold for RANSAC
+    iterations = None # Set an appropriate number of iterations for RANSAC
+    x = velocity_ransac(corrected_prev_pts, flow, depth, ransac=ransac, threshold=threshold, iterations=iterations)
+    
     return x
 
     raise NotImplementedError("Complete flow.py: estimate_velocity")
