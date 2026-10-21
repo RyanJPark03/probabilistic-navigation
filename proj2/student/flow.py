@@ -35,7 +35,7 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
 
     H = np.concatenate((A, B), axis=1)
 
-    if not in ransac:
+    if not ransac:
         temp1 = np.transpose(H) @ H
         temp2 = np.linalg.inv(temp1)
         temp3 = temp2 @ np.transpose(H)
@@ -114,7 +114,7 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     threshold = None # Set an appropriate threshold for RANSAC
     iterations = None # Set an appropriate number of iterations for RANSAC
     x = velocity_ransac(corrected_prev_pts, flow, depth, ransac=ransac, threshold=threshold, iterations=iterations)
-    
+
     return x
 
     raise NotImplementedError("Complete flow.py: estimate_velocity")
