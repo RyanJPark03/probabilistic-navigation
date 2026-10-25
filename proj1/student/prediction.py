@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation
 
 from support import Estimate
 # from filter import noise_covariances
+# from filter import noise_covariances
 
 
 def predict(
@@ -93,11 +94,6 @@ def predict(
     G_inv_prime_pitch_noise_g = G_inv_prime_pitch @ -np.ones(3)
     G_inv_prime_yaw_noise_g = G_inv_prime_yaw @ -np.ones(3)
 
-    #G_inv_prime_roll_noise_g = G_inv_prime_roll @ -np.ones(3)
-    #G_inv_prime_pitch_noise_g = G_inv_prime_pitch @ -np.ones(3)
-    #G_inv_prime_yaw_noise_g = G_inv_prime_yaw @ -np.ones(3)
-
-        #fixed Rz dot was missing a negative sign
     Rz_dot = np.array([
         [-np.sin(yaw), np.cos(yaw), 0],
         [np.cos(yaw), -np.sin(yaw), 0],

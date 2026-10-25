@@ -19,6 +19,7 @@ def update_pose(
     # TODO: build the observation model and apply the Kalman update.
     #C x_bar + v_t
     R = measurement_noise
+    R = measurement_noise
     x = estimate.state[:6]
     W = np.eye(6)
     
@@ -35,7 +36,32 @@ def update_pose(
     print("pre inverse:", C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
     K =  estimate.covariance @ np.transpose(C) @ np.linalg.inv(C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
     mu = estimate.state + K @ (x - measurement)
+    W = np.eye(6)
+    
+    # is the partial of g w.r.t .x TODO
+    C = np.array([
+        [1, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 1, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 1, 0, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 1, 0, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 0, 1, 0, 0,0,0,0,0,0,0,0,0],
+        [0, 0, 0, 0, 0, 1, 0,0,0,0,0,0,0,0,0]
+    ])
+    # mu_bar = x
+    print("pre inverse:", C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
+    K =  estimate.covariance @ np.transpose(C) @ np.linalg.inv(C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
+    mu = estimate.state + K @ (x - measurement)
 
+    cov = estimate.covariance - K @ C @ estimate.covariance
+
+    estimate.state = mu
+    for s in range(3,6):
+        if estimate.state[s] > np.pi:
+            estimate.state[s] -= 2*np.pi
+        elif estimate.state[s] < -np.pi:
+            estimate.state[s] += 2*np.pi
+    estimate.covariance=cov
+    return estimate
     cov = estimate.covariance - K @ C @ estimate.covariance
 
     estimate.state = mu
