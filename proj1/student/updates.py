@@ -32,25 +32,20 @@ def update_pose(
         [0, 0, 0, 0, 0, 1, 0,0,0,0,0,0,0,0,0]
     ])
     # mu_bar = x
-    #print("pre inverse:", C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
+    print("pre inverse:", C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
     K =  estimate.covariance @ np.transpose(C) @ np.linalg.inv(C @ estimate.covariance @ np.transpose(C) + W @ R @ np.transpose(W))
-
-    #changed to measurement - x instead of x - measurement (divergence bug)
-    innovation = measurement - x
-    
-    for s in range(3,6):
-        if innovation[s] > np.pi:
-            innovation[s] -= 2*np.pi
-        elif innovation[s] < -np.pi:
-            innovation[s] += 2*np.pi
-
-    mu = estimate.state + K @ (innovation)
+    mu = estimate.state + K @ (x - measurement)
 
     cov = estimate.covariance - K @ C @ estimate.covariance
 
-    #estimate.state = mu
-    #estimate.covariance=cov
-    return Estimate(state=mu, covariance=cov)
+    estimate.state = mu
+    for s in range(3,6):
+        if estimate.state[s] > np.pi:
+            estimate.state[s] -= 2*np.pi
+        elif estimate.state[s] < -np.pi:
+            estimate.state[s] += 2*np.pi
+    estimate.covariance=cov
+    return estimate
 
     #raise NotImplementedError("Complete updates.py: update_pose")
 

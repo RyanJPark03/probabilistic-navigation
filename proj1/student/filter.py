@@ -18,8 +18,8 @@ def noise_covariances(part: int) -> tuple[np.ndarray, np.ndarray]:
     """
     # TODO: choose and tune the process and measurement noise covariances.
     if part == 1:
-        Q =  0.01* np.eye(12)
-        R = 0.01 * np.eye(6)
+        Q =  np.eye(12)
+        R = np.eye(6)
         return (Q, R)
     else:
         return (0.001*np.eye(12), #0.001*np.eye(3))
@@ -48,10 +48,16 @@ def run_filter(
     states = np.empty((15, dataset.time.size))
     states[:, 0] = estimate.state
     # for index in range(1, dataset.time.size):
-    for index in range(1, dataset.time.size):
-        # changed index to index -1 since we want to predict previous samples
+    for index in range(1, 3):
+        # def predict(
+        #     estimate: Estimate,
+        #     angular_velocity: ArrayLike,
+        #     acceleration: ArrayLike,
+        #     dt: float,
+        #     process_noise: ArrayLike,
+        # ) -> Estimate:
         prediction = predict(
-            estimate, dataset.angular_velocity[:, index-1], dataset.acceleration[:, index-1],
+            estimate, dataset.angular_velocity[:, index], dataset.acceleration[:, index],
             dataset.time[index] - dataset.time[index - 1], process_noise,
         )
 
@@ -59,7 +65,7 @@ def run_filter(
         # estimate=prediction
 
         states[:, index] = estimate.state
-        #print("state",estimate.state)
+        print("state",estimate.state)
         # raise NotImplementedError("Complete filter.py: run_filter loop")
     return FilterResult(
         states=states, time=dataset.time, vicon=dataset.vicon,
