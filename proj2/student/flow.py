@@ -17,8 +17,6 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
     each point by its 2D flow residual norm (< threshold, in 1/s), keep the
     best consensus, and refit using all its inliers.
     """
-<<<<<<< HEAD
-=======
 
     A = np.asarray([])
     B = np.asarray([])
@@ -46,7 +44,6 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
         return x    
 
 
->>>>>>> fc9d4d1ebd571e05f42f60e23b4e0975a3f1cfe6
     raise NotImplementedError("Complete flow.py: velocity_ransac")
 
 
@@ -64,8 +61,6 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     fewer than three usable tracks remain. The runner plots interval averages
     at midpoint timestamps; use the previous pose for frame transformations.
     """
-<<<<<<< HEAD
-=======
 
     if (current.time - previous.time) <= 0:
         return None
@@ -101,43 +96,51 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     # print("shape of expanded_prev_pts: ", expanded_prev_pts.shape)
 
     # Compute the flow in normalized image coordinates
-    corrected_prev_pts = np.linalg.inv(CAMERA_MATRIX) @ expanded_prev_pts.reshape(-1, 3, 1)
-    corrected_next_pts = np.linalg.inv(CAMERA_MATRIX) @ expanded_next_pts.reshape(-1, 3, 1)
+    raw_prev_pts = np.linalg.inv(CAMERA_MATRIX) @ expanded_prev_pts.reshape(-1, 3, 1)
+   # print("raw shape:", raw_prev_pts.shape )
+    raw_next_pts = np.linalg.inv(CAMERA_MATRIX) @ expanded_next_pts.reshape(-1, 3, 1)
 
     # print("K_inv: ", np.linalg.inv(CAMERA_MATRIX))
     # print("corrected_prev_pts[0]: ", corrected_prev_pts[0])
     # print("expanded_prev_pts[0]: ", expanded_prev_pts[0])
     # print("reshaped expanded_prev_pts[0]: ", expanded_prev_pts.reshape(-1, 3, 1)[0])
     #raise NotImplementedError("Complete flow.py: estimate_velocity")
-
-    corrected_prev_pts = corrected_prev_pts[:, :2, 0]
-    corrected_next_pts = corrected_next_pts[:, :2, 0]
+   
+    corrected_prev_pts = raw_prev_pts[:, :2, 0]
+    corrected_next_pts = raw_next_pts[:, :2, 0]
 
     flow = corrected_next_pts - corrected_prev_pts
     flow /= (current.time - previous.time)
 
-    depth = np.ones(len(corrected_prev_pts)) * 1.0  # Placeholder for depth
+    #camera pose at previous.time
+    R_CB = BODY_TO_CAMERA[:3, :3]
+    t_CB = BODY_TO_CAMERA[:3, 3] 
+    R_WC = pose.rotation @ np.transpose(R_CB)
+    # print("Shape: R_WC", R_WC.shape)
+    # print("Shape: pose", pose.position.shape)
+    # print("shape t_CB:", t_CB.shape)
+    # print("shape: t_CB  rot pose:", (pose.rotation @ t_CB).shape)
+    H_WC = np.asarray(np.concatenate([np.transpose(R_WC)[:, :2], np.transpose(np.asarray([-np.transpose(R_WC) @ (pose.position + pose.rotation @ t_CB)]))], axis = 1))
+
+    # print("H_WC Shape:", H_WC.shape)
+
+    rays_world = H_WC @ raw_prev_pts
+    depth = -H_WC[2,-1] / rays_world[:,2]
 
     threshold = None # Set an appropriate threshold for RANSAC
     iterations = None # Set an appropriate number of iterations for RANSAC
-    x = velocity_ransac(corrected_prev_pts, flow, depth, ransac=ransac, threshold=threshold, iterations=iterations)
+    x = velocity_ransac(corrected_prev_pts, flow, depth.ravel(), ransac=ransac, threshold=threshold, iterations=iterations)
 
     #x is the camera's velocty in the camera frame
     V = x[:3]
     omega = x[3:]
 
-    #camera pose at previous.time
-    R_CB = BODY_TO_CAMERA[:3, :3]
-    t_CB = BODY_TO_CAMERA[:3, 3] 
-    R_WC = pose.rotation @ np.linalg.inv(R_CB)
-
     #V + omega x t_CB. then rotate to world/body frames
     v_world = R_WC @ (V + np.cross(omega, t_CB))
     omega_body = np.linalg.inv(R_WC) @ omega
 
-    x = np.concatenate((v_world, omega_body))
+    x = np.concatenate((-v_world, omega_body))
 
     return x
 
->>>>>>> fc9d4d1ebd571e05f42f60e23b4e0975a3f1cfe6
     raise NotImplementedError("Complete flow.py: estimate_velocity")
