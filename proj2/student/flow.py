@@ -116,16 +116,19 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     R_CB = BODY_TO_CAMERA[:3, :3]
     t_CB = BODY_TO_CAMERA[:3, 3] 
     R_WC = pose.rotation @ np.transpose(R_CB)
+    t_BC = -np.transpose(R_CB) @ t_CB
     # print("Shape: R_WC", R_WC.shape)
     # print("Shape: pose", pose.position.shape)
     # print("shape t_CB:", t_CB.shape)
     # print("shape: t_CB  rot pose:", (pose.rotation @ t_CB).shape)
-    H_WC = np.asarray(np.concatenate([np.transpose(R_WC)[:, :2], np.transpose(np.asarray([-np.transpose(R_WC) @ (pose.position + pose.rotation @ t_CB)]))], axis = 1))
+    H_WC = np.asarray(np.concatenate([np.transpose(R_WC)[:, :2], 
+    np.transpose(np.asarray([-np.transpose(R_WC) @ (pose.position + pose.rotation @ t_BC)]))], axis = 1))
 
     # print("H_WC Shape:", H_WC.shape)
 
-    rays_world = H_WC @ raw_prev_pts
-    depth = -H_WC[2,-1] / rays_world[:,2]
+    rays_world = np.linalg.inv(H_WC) @ raw_prev_pts
+    # print("this numerator is:", -np.linalg.inv(H_WC)[2,-1])
+    depth = np.linalg.inv(H_WC)[2,-1] / rays_world[:,2]
 
     threshold = None # Set an appropriate threshold for RANSAC
     iterations = None # Set an appropriate number of iterations for RANSAC
@@ -137,9 +140,9 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
 
     #V + omega x t_CB. then rotate to world/body frames
     v_world = R_WC @ (V + np.cross(omega, t_CB))
-    omega_body = np.linalg.inv(R_WC) @ omega
+    omega_body = np.transpose(R_WC) @ omega
 
-    x = np.concatenate((-v_world, omega_body))
+    x = np.concatenate((v_world, omega_body))
 
     return x
 
