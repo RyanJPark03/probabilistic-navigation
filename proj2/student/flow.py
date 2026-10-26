@@ -2,6 +2,7 @@
 
 import cv2
 import numpy as np
+import random
 
 from support import BODY_TO_CAMERA, CAMERA_MATRIX, Frame, Pose
 
@@ -18,33 +19,80 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
     best consensus, and refit using all its inliers.
     """
 
-    A = np.asarray([])
-    B = np.asarray([])
-
     # use velocity_ransac to estimate the camera-frame velocity
+    indices_chosen = set()
 
-    for i in range(len(points)):
-        corner = points[i]
-        Z = depth[i]
-        A = np.append(A, [-1/Z, 0, corner[0] / Z])
-        A = np.append(A, [0, -1/Z, corner[1] / Z])
-        B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
-        B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
-    A = A.reshape(-1,3)
-    B = B.reshape(-1,3)
+    best_inlier_count = -1
+    best_x = None
 
-    H = np.concatenate((A, B), axis=1)
+    for iteration in range(iterations):
+        # choose three random points
+        random_indices = tuple(sorted(random.sample(range(len(flow)), 3)))
+        while random_indices in indices_chosen:
+            random_indices = tuple(sorted(random.sample(range(len(flow)), 3)))
+        indices_chosen.add(random_indices)
 
-    if not ransac:
+        A = np.asarray([])
+        B = np.asarray([])
+
+        for i in random_indices:
+            corner = points[i]
+            Z = depth[i]
+            A = np.append(A, [-1/Z, 0, corner[0] / Z])
+            A = np.append(A, [0, -1/Z, corner[1] / Z])
+            B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
+            B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
+
+        A = A.reshape(-1,3)
+        B = B.reshape(-1,3)
+        H = np.concatenate((A, B), axis=1)
+
         temp1 = np.transpose(H) @ H
         temp2 = np.linalg.inv(temp1)
         temp3 = temp2 @ np.transpose(H)
-        x = temp3 @ flow.ravel()
+        x = temp3 @ flow[list(random_indices)].ravel()
 
-        return x    
+        num_inliers = 0
+        inlier_indices = []
 
+        for i in range(len(points)):
+            test_A = np.asarray([])
+            test_B = np.asarray([])
+            corner = points[i]
+            Z = depth[i]
+            test_A = np.append(test_A, [-1/Z, 0, corner[0] / Z])
+            test_A = np.append(test_A, [0, -1/Z, corner[1] / Z])
+            test_B = np.append(test_B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
+            test_B = np.append(test_B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
+            test_A = test_A.reshape(-1,3)
+            test_B = test_B.reshape(-1,3)
+            test_H = np.concatenate((test_A, test_B), axis=1)
 
-    raise NotImplementedError("Complete flow.py: velocity_ransac")
+            error = np.linalg.norm(np.asarray(test_H @ x)[:2] - flow[i].ravel())
+            if error <= threshold:
+                num_inliers = num_inliers + 1
+                inlier_indices.append(i)
+
+        if num_inliers > best_inlier_count:
+            best_inlier_count = num_inliers
+            A = np.asarray([])
+            B = np.asarray([])
+            for i in inlier_indices:
+                corner = points[i]
+                Z = depth[i]
+                A = np.append(A, [-1/Z, 0, corner[0] / Z])
+                A = np.append(A, [0, -1/Z, corner[1] / Z])
+                B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
+                B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
+            A = A.reshape(-1,3)
+            B = B.reshape(-1,3)
+            H = np.concatenate((A, B), axis=1)
+            temp1 = np.transpose(H) @ H
+            temp2 = np.linalg.inv(temp1)
+            temp3 = temp2 @ np.transpose(H)
+            best_x = temp3 @ flow[list(inlier_indices)].ravel()
+
+    return best_x
 
 
 def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
@@ -65,21 +113,7 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     if (current.time - previous.time) <= 0:
         return None
 
-    # cv2.imshow("previous", previous.image)
-    # cv2.waitKey()
-    
-
-    # harris_corners = cv2.cornerHarris(previous.image, 2, 3, 0.04)
-    # print("corner", harris_corners)
-    # for corner in harris_corners:
-    #     cv2.circle(previous.image, (int(corner[0]), int(corner[1])), 5, (0, 255, 0), -1)
-    # # corners_current = cv2.cornerHarris(current.image, 2, 3, 0.04)
-    # cv2.imwrite('harris_output.jpg', previous.image)
-
     features_to_track = cv2.goodFeaturesToTrack(previous.image, maxCorners=100, qualityLevel=0.3, minDistance=7, blockSize=7)
-    # for corner in features_to_track:
-    #     cv2.circle(previous.image, (int(corner[0][0]), int(corner[0][1])), 5, (0, 255, 0), -1)
-    # cv2.imwrite('good_features_output.jpg', previous.image)
     if features_to_track is None or len(features_to_track) < 3:
         return None
 
@@ -89,22 +123,12 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     valid_prev_pts = features_to_track[good_tracks_mask]
     valid_next_pts = next_points[good_tracks_mask]
 
-    # print("shape of valid_prev_pts: ", valid_prev_pts.shape)
-    # print("shape of ones: ", np.ones((valid_prev_pts.shape[0], 1)).shape)
     expanded_prev_pts = np.concatenate((valid_prev_pts, np.ones((valid_prev_pts.shape[0], 1, 1))), axis=2)
     expanded_next_pts = np.concatenate((valid_next_pts, np.ones((valid_next_pts.shape[0], 1, 1))), axis=2)
-    # print("shape of expanded_prev_pts: ", expanded_prev_pts.shape)
 
     # Compute the flow in normalized image coordinates
     raw_prev_pts = np.linalg.inv(CAMERA_MATRIX) @ expanded_prev_pts.reshape(-1, 3, 1)
-   # print("raw shape:", raw_prev_pts.shape )
     raw_next_pts = np.linalg.inv(CAMERA_MATRIX) @ expanded_next_pts.reshape(-1, 3, 1)
-
-    # print("K_inv: ", np.linalg.inv(CAMERA_MATRIX))
-    # print("corrected_prev_pts[0]: ", corrected_prev_pts[0])
-    # print("expanded_prev_pts[0]: ", expanded_prev_pts[0])
-    # print("reshaped expanded_prev_pts[0]: ", expanded_prev_pts.reshape(-1, 3, 1)[0])
-    #raise NotImplementedError("Complete flow.py: estimate_velocity")
    
     corrected_prev_pts = raw_prev_pts[:, :2, 0]
     corrected_next_pts = raw_next_pts[:, :2, 0]
@@ -117,21 +141,14 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     t_CB = BODY_TO_CAMERA[:3, 3] 
     R_WC = pose.rotation @ np.transpose(R_CB)
     t_BC = -np.transpose(R_CB) @ t_CB
-    # print("Shape: R_WC", R_WC.shape)
-    # print("Shape: pose", pose.position.shape)
-    # print("shape t_CB:", t_CB.shape)
-    # print("shape: t_CB  rot pose:", (pose.rotation @ t_CB).shape)
     H_WC = np.asarray(np.concatenate([np.transpose(R_WC)[:, :2], 
     np.transpose(np.asarray([-np.transpose(R_WC) @ (pose.position + pose.rotation @ t_BC)]))], axis = 1))
 
-    # print("H_WC Shape:", H_WC.shape)
-
     rays_world = np.linalg.inv(H_WC) @ raw_prev_pts
-    # print("this numerator is:", -np.linalg.inv(H_WC)[2,-1])
     depth = np.linalg.inv(H_WC)[2,-1] / rays_world[:,2]
 
-    threshold = None # Set an appropriate threshold for RANSAC
-    iterations = None # Set an appropriate number of iterations for RANSAC
+    threshold = 0.5
+    iterations = 12
     x = velocity_ransac(corrected_prev_pts, flow, depth.ravel(), ransac=ransac, threshold=threshold, iterations=iterations)
 
     #x is the camera's velocty in the camera frame
