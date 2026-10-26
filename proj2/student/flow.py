@@ -19,6 +19,25 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
     best consensus, and refit using all its inliers.
     """
 
+    if not ransac:
+        A = np.asarray([])
+        B = np.asarray([])
+
+        for i in range(len(points)):
+            corner = points[i]
+            Z = depth[i]
+            A = np.append(A, [-1/Z, 0, corner[0] / Z])
+            A = np.append(A, [0, -1/Z, corner[1] / Z])
+            B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
+            B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
+        A = A.reshape(-1,3)
+        B = B.reshape(-1,3)
+        H = np.concatenate((A, B), axis=1)
+        temp1 = np.transpose(H) @ H
+        temp2 = np.linalg.inv(temp1)
+        temp3 = temp2 @ np.transpose(H)
+        best_x = temp3 @ flow[list(inlier_indices)].ravel()
+
     # use velocity_ransac to estimate the camera-frame velocity
     indices_chosen = set()
 
@@ -27,25 +46,24 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
 
     for iteration in range(iterations):
         # choose three random points
-        random_indices = tuple(sorted(random.sample(range(len(flow)), 3)))
-        while random_indices in indices_chosen:
+        H = np.asarray([1])
+        while np.linalg.matrix_rank(H) < 6:
             random_indices = tuple(sorted(random.sample(range(len(flow)), 3)))
-        indices_chosen.add(random_indices)
 
-        A = np.asarray([])
-        B = np.asarray([])
+            A = np.asarray([])
+            B = np.asarray([])
 
-        for i in random_indices:
-            corner = points[i]
-            Z = depth[i]
-            A = np.append(A, [-1/Z, 0, corner[0] / Z])
-            A = np.append(A, [0, -1/Z, corner[1] / Z])
-            B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
-            B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
+            for i in random_indices:
+                corner = points[i]
+                Z = depth[i]
+                A = np.append(A, [-1/Z, 0, corner[0] / Z])
+                A = np.append(A, [0, -1/Z, corner[1] / Z])
+                B = np.append(B, [[corner[0] * corner[1], -(1+corner[0]**2), corner[1]]])
+                B = np.append(B, [[1+corner[1]**2, -corner[0]*corner[1], -corner[0]]])
 
-        A = A.reshape(-1,3)
-        B = B.reshape(-1,3)
-        H = np.concatenate((A, B), axis=1)
+            A = A.reshape(-1,3)
+            B = B.reshape(-1,3)
+            H = np.concatenate((A, B), axis=1)
 
         temp1 = np.transpose(H) @ H
         temp2 = np.linalg.inv(temp1)
@@ -122,6 +140,9 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     good_tracks_mask = status.reshape(-1) == 1
     valid_prev_pts = features_to_track[good_tracks_mask]
     valid_next_pts = next_points[good_tracks_mask]
+    if len(valid_prev_pts) < 3:
+        return None
+
 
     expanded_prev_pts = np.concatenate((valid_prev_pts, np.ones((valid_prev_pts.shape[0], 1, 1))), axis=2)
     expanded_next_pts = np.concatenate((valid_next_pts, np.ones((valid_next_pts.shape[0], 1, 1))), axis=2)
