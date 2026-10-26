@@ -36,7 +36,7 @@ def velocity_ransac(points: np.ndarray, flow: np.ndarray, depth: np.ndarray, *,
         temp1 = np.transpose(H) @ H
         temp2 = np.linalg.inv(temp1)
         temp3 = temp2 @ np.transpose(H)
-        best_x = temp3 @ flow[list(inlier_indices)].ravel()
+        best_x = temp3 @ flow.ravel()
 
     # use velocity_ransac to estimate the camera-frame velocity
     indices_chosen = set()
@@ -168,8 +168,16 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     rays_world = np.linalg.inv(H_WC) @ raw_prev_pts
     depth = 1 / rays_world[:,2]
 
-    threshold = 0.5
-    iterations = 12
+    # RANSAC params tuned with tune_ransac.py (datasets 1 and 4, 3 seeds each).
+    # Score = mean over datasets of (linear RMSE m/s + angular RMSE rad/s) vs mocap.
+    # Tested threshold (1/s): 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1.0
+    # Tested iterations:      3, 5, 10, 20, 50
+    #   thresh 0.2,  iters 5   -> 0.445  (best; 0.2/10, 0.2/50 and 0.3/5 tie at 0.445)
+    #   thresh 0.1-0.5, iters >= 5 -> 0.445-0.448 (flat plateau)
+    #   thresh 1.0, any iters  -> 0.450-0.451 (too loose, outliers creep in)
+    #   thresh 0.02, iters 3   -> 1.061 (too strict, refits on too few inliers)
+    threshold = 0.2
+    iterations = 5
     x = velocity_ransac(corrected_prev_pts, flow, depth.ravel(), ransac=ransac, threshold=threshold, iterations=iterations)
 
     #x is the camera's velocty in the camera frame
