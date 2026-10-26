@@ -145,7 +145,7 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
     np.transpose(np.asarray([-np.transpose(R_WC) @ (pose.position + pose.rotation @ t_BC)]))], axis = 1))
 
     rays_world = np.linalg.inv(H_WC) @ raw_prev_pts
-    depth = np.linalg.inv(H_WC)[2,-1] / rays_world[:,2]
+    depth = 1 / rays_world[:,2]
 
     threshold = 0.5
     iterations = 12
