@@ -157,7 +157,7 @@ def estimate_velocity(previous: Frame, current: Frame, pose: Pose, *,
 
     #V + omega x t_CB. then rotate to world/body frames
     v_world = R_WC @ (V + np.cross(omega, t_CB))
-    omega_body = np.transpose(R_WC) @ omega
+    omega_body = np.transpose(R_CB) @ omega
 
     x = np.concatenate((v_world, omega_body))
 
